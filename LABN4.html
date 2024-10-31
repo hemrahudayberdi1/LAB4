@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Растровые алгоритмы</title>
+    <style>
+        canvas {
+            border: 4px solid black;
+            display: block;
+            margin: 20px auto;
+        }
+        .panel {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        #output {
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            color: #333;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 20px;
+            width: 600px;
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <div class="panel">
+        <label><input type="radio" name="algorithm" value="step" checked> Пошаговый алгоритм</label>
+        <label><input type="radio" name="algorithm" value="dda"> Алгоритм ЦДА</label>
+        <label><input type="radio" name="algorithm" value="bresenham"> Алгоритм Брезенхема</label>
+        <label><input type="radio" name="algorithm" value="circle"> Алгоритм Брезенхема (окружность)</label>
+
+        <div>
+            <label for="x0">x0:</label>
+            <input type="number" id="x0" value="0">
+            <label for="y0">y0:</label>
+            <input type="number" id="y0" value="0">
+            <label for="x1">x1:</label>
+            <input type="number" id="x1" value="0">
+            <label for="y1">y1:</label>
+            <input type="number" id="y1" value="0">
+        </div>
+
+        <button onclick="showResult()">Показать результат</button>
+        <button onclick="changeScale()">Изменить масштаб</button>
+        <button onclick="clearCanvas()">Очистить</button>
+    </div>
+
+    <canvas id="canvas" width="600" height="600"></canvas>
+    <div id="output"></div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const output = document.getElementById('output');
+        let scale = 40;
+
+        function drawGrid() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const width = canvas.width;
+            const height = canvas.height;
+            const halfWidth = width / 2;
+            const halfHeight = height / 2;
+
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 1;
+            for (let x = 0; x <= width; x += scale) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+            for (let y = 0; y <= height; y += scale) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(halfWidth, 0);
+            ctx.lineTo(halfWidth, height);
+            ctx.moveTo(0, halfHeight);
+            ctx.lineTo(width, halfHeight);
+            ctx.stroke();
+
+            drawArrow(halfWidth, 0, halfWidth, 10);
+            drawArrow(width, halfHeight, width - 10, halfHeight);
+
+            ctx.fillStyle = 'black';
+            ctx.font = '12px Arial';
+            for (let i = -Math.floor(halfWidth / scale); i <= Math.floor(halfWidth / scale); i++) {
+                const x = halfWidth + i * scale;
+                const y = halfHeight - i * scale;
+
+                if (i !== 0) {
+                    ctx.fillText(i, x - 5, halfHeight + 15);
+                    ctx.fillText(-i, halfWidth + 5, y + 5);
+                }
+            }
+
+            ctx.fillText("X", width - 15, halfHeight - 10);
+            ctx.fillText("Y", halfWidth + 10, 15);
+        }
+
+        function drawArrow(x1, y1, x2, y2) {
+            const headLength = 8;
+            const angle = Math.atan2(y2 - y1, x2 - x1);
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.lineTo(x2 - headLength * Math.cos(angle - Math.PI / 6), y2 - headLength * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(x2, y2);
+            ctx.lineTo(x2 - headLength * Math.cos(angle + Math.PI / 6), y2 - headLength * Math.sin(angle + Math.PI / 6));
+            ctx.stroke();
+        }
+
+        function logOutput(text) {
+            const line = document.createElement("div");
+            line.textContent = text;
+            output.appendChild(line);
+        }
+
+        function drawSelectedAlgorithm() {
+            const x0 = parseInt(document.getElementById("x0").value) * scale + canvas.width / 2;
+            const y0 = canvas.height / 2 - parseInt(document.getElementById("y0").value) * scale;
+            const x1 = parseInt(document.getElementById("x1").value) * scale + canvas.width / 2;
+            const y1 = canvas.height / 2 - parseInt(document.getElementById("y1").value) * scale;
+
+            ctx.fillStyle = 'red';
+            output.innerHTML = "";  // Очищаем вывод
+
+            const algorithm = document.querySelector('input[name="algorithm"]:checked').value;
+            switch (algorithm) {
+                case "step":
+                    drawLineStepByStep(x0, y0, x1, y1);
+                    break;
+                case "dda":
+                    drawLineDDA(x0, y0, x1, y1);
+                    break;
+                case "bresenham":
+                    drawLineBresenham(x0, y0, x1, y1);
+                    break;
+                case "circle":
+                    const radius = Math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2) / scale;
+                    drawCircleBresenham(x0, y0, radius * scale);
+                    break;
+            }
+        }
+
+        function drawLineDDA(x0, y0, x1, y1) {
+            const dx = x1 - x0;
+            const dy = y1 - y0;
+            const steps = Math.max(Math.abs(dx), Math.abs(dy));
+            const xInc = dx / steps;
+            const yInc = dy / steps;
+
+            let x = x0;
+            let y = y0;
+            for (let i = 0; i <= steps; i++) {
+                ctx.fillRect(Math.round(x), Math.round(y), 2, 2);
+                const logicalX = (x - canvas.width / 2) / scale;
+                const logicalY = (canvas.height / 2 - y) / scale;
+                logOutput(`Вычисленная точка: (${logicalX.toFixed(3)}, ${logicalY.toFixed(3)}), рисуем точку (${Math.round(x)}, ${Math.round(y)})`);
+                x += xInc;
+                y += yInc;
+            }
+        }
+
+        function drawLineStepByStep(x0, y0, x1, y1) {
+            const dx = x1 - x0;
+            const dy = y1 - y0;
+            const steps = Math.max(Math.abs(dx), Math.abs(dy));
+            const xInc = dx / steps;
+            const yInc = dy / steps;
+
+            let x = x0;
+            let y = y0;
+            for (let i = 0; i <= steps; i++) {
+                ctx.fillRect(Math.round(x), Math.round(y), 2, 2);
+                const logicalX = (x - canvas.width / 2) / scale;
+                const logicalY = (canvas.height / 2 - y) / scale;
+                logOutput(`По шаговый: (${logicalX.toFixed(3)}, ${logicalY.toFixed(3)})`);
+                x += xInc;
+                y += yInc;
+            }
+        }
+
+        function drawLineBresenham(x0, y0, x1, y1) {
+            let x = x0;
+            let y = y0;
+            const dx = Math.abs(x1 - x0);
+            const dy = Math.abs(y1 - y0);
+            const sx = (x0 < x1) ? 1 : -1;
+            const sy = (y0 < y1) ? 1 : -1;
+            let err = dx - dy;
+
+            while (true) {
+                ctx.fillRect(x, y, 2, 2);
+                const logicalX = (x - canvas.width / 2) / scale;
+                const logicalY = (canvas.height / 2 - y) / scale;
+                logOutput(`Брезенхам: (${logicalX.toFixed(3)}, ${logicalY.toFixed(3)})`);
+
+                if (x === x1 && y === y1) break;
+                const e2 = 2 * err;
+                if (e2 > -dy) { err -= dy; x += sx; }
+                if (e2 < dx) { err += dx; y += sy; }
+            }
+        }
+
+        function drawCircleBresenham(x0, y0, radius) {
+            let x = 0;
+            let y = radius;
+            let d = 3 - 2 * radius;
+            drawCirclePoints(x0, y0, x, y);
+
+            while (y >= x) {
+                x++;
+                if (d > 0) {
+                    y--;
+                    d += 4 * (x - y) + 10;
+                } else {
+                    d += 4 * x + 6;
+                }
+                drawCirclePoints(x0, y0, x, y);
+            }
+        }
+
+        function drawCirclePoints(x0, y0, x, y) {
+            const points = [
+                [x0 + x, y0 + y], [x0 - x, y0 + y],
+                [x0 + x, y0 - y], [x0 - x, y0 - y],
+                [x0 + y, y0 + x], [x0 - y, y0 + x],
+                [x0 + y, y0 - x], [x0 - y, y0 - x]
+            ];
+
+            for (const [px, py] of points) {
+                ctx.fillRect(px, py, 2, 2);
+                const logicalX = (px - canvas.width / 2) / scale;
+                const logicalY = (canvas.height / 2 - py) / scale;
+                logOutput(`Окружность: (${logicalX.toFixed(3)}, ${logicalY.toFixed(3)})`);
+            }
+        }
+
+        function showResult() {
+            drawGrid();
+            drawSelectedAlgorithm();
+        }
+
+        function changeScale() {
+            scale = parseInt(prompt("Введите новый масштаб:", scale)) || scale;
+            showResult();
+        }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            output.innerHTML = "";
+            drawGrid();
+        }
+
+        drawGrid();
+    </script>
+</body>
+</html>
